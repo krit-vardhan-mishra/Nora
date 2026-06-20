@@ -16,6 +16,7 @@ import PerformanceSettings from './Settings/PerformanceSettings';
 import PreferencesSettings from './Settings/PreferencesSettings';
 import StartupSettings from './Settings/StartupSettings';
 import StorageSettings from './Settings/StorageSettings';
+import OnlineStreamingSettings from './Settings/OnlineStreamingSettings';
 
 const SettingsPage = () => {
   const { t } = useTranslation();
@@ -41,6 +42,9 @@ const SettingsPage = () => {
 
           {/* ? LYRICS SETTINGS */}
           <LyricsSettings />
+
+          {/* ? ONLINE STREAMING SETTINGS */}
+          <OnlineStreamingSettings />
 
           {/* ? EQUALIZER SETTINGS */}
           <EqualizerSettings />

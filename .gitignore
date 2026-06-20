@@ -9,3 +9,7 @@ coverage/
 *.m3u
 .npmrc
 .github/plans/
+yt-dlp.exe
+.agents/
+.tanstack/
+skills-lock.json

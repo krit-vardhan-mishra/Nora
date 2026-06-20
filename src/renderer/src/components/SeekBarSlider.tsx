@@ -12,6 +12,7 @@ import {
 } from 'react';
 
 import { AppUpdateContext } from '../contexts/AppUpdateContext';
+import { useAudioPlayer } from '../hooks/useAudioPlayer';
 import calculateTime from '../utils/calculateTime';
 import debounce from '../utils/debounce';
 
@@ -26,22 +27,26 @@ type Props = {
 const SeekBarSlider = (props: Props) => {
   const currentSongData = useStore(store, (state) => state.currentSongData);
   const preferences = useStore(store, (state) => state.localStorage.preferences);
+  const player = useAudioPlayer();
 
   const { updateSongPosition } = useContext(AppUpdateContext);
 
   const { id, name, className, sliderOpacity, onSeek } = props;
 
   const [songPos, setSongPos] = useState(0);
+  const [bufferedPos, setBufferedPos] = useState(0);
   const isMouseDownRef = useRef(false);
   const isMouseScrollRef = useRef(false);
   const seekbarRef = useRef(null as HTMLInputElement | null);
   const lowResponseSongPositionRef = useRef(0);
 
+  const duration = currentSongData.duration || 0;
   const seekBarCssProperties: CSSProperties = {};
   seekBarCssProperties['--seek-before-width'] = `${
-    (songPos /
-      ((currentSongData.duration || 0) >= songPos ? currentSongData.duration || 0 : songPos)) *
-    100
+    duration > 0 ? (songPos / (duration >= songPos ? duration : songPos)) * 100 : 0
+  }%`;
+  seekBarCssProperties['--seek-buffer-width'] = `${
+    duration > 0 ? (bufferedPos / (duration >= bufferedPos ? duration : bufferedPos)) * 100 : 0
   }%`;
   if (sliderOpacity !== undefined) seekBarCssProperties['--slider-opacity'] = `${sliderOpacity}`;
 
@@ -65,11 +70,27 @@ const SeekBarSlider = (props: Props) => {
         setSongPos(lowResponseSongPositionRef.current);
         if (onSeek) onSeek(lowResponseSongPositionRef.current);
       }
+
+      // Update buffered position
+      try {
+        const buffered = player.audio.buffered;
+        const currentTime = player.currentTime || 0;
+        let bufferedEnd = 0;
+        for (let i = 0; i < buffered.length; i++) {
+          if (currentTime >= buffered.start(i) && currentTime <= buffered.end(i)) {
+            bufferedEnd = buffered.end(i);
+            break;
+          }
+        }
+        setBufferedPos(bufferedEnd);
+      } catch (e) {
+        // Ignored
+      }
     }, 500);
 
     return () => clearInterval(intervalId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [player]);
 
   // useEffect(() => {
   //   if (
@@ -133,15 +154,18 @@ const SeekBarSlider = (props: Props) => {
     }, 250);
   };
 
+  const baseClassName =
+    className ||
+    "seek-bar-slider before:bg-seekbar-background-color/75 hover:before:bg-font-color-highlight dark:before:bg-dark-seekbar-background-color/75 dark:hover:before:bg-dark-font-color-highlight relative float-left m-0 h-6 w-full appearance-none bg-[transparent] p-0 outline-hidden outline-offset-1 before:absolute before:top-1/2 before:left-0 before:h-1 before:w-[var(--seek-before-width)] before:-translate-y-1/2 before:cursor-pointer before:rounded-3xl before:transition-[width,background] before:content-[''] focus-visible:outline!";
+
+  const finalClassName = `${baseClassName} after:absolute after:top-1/2 after:left-0 after:h-1 after:w-[var(--seek-buffer-width)] after:-translate-y-1/2 after:cursor-pointer after:rounded-3xl after:transition-[width,height,transform] after:content-[''] after:bg-white/40 dark:after:bg-white/25 after:z-0 before:z-10 hover:after:h-3 group-hover:after:h-3 group-focus-within:after:h-3 group-hover/fullScreenPlayer:after:h-3`;
+
   return (
     <input
       type="range"
       name={name}
       id={id}
-      className={
-        className ||
-        "seek-bar-slider before:bg-seekbar-background-color/75 hover:before:bg-font-color-highlight dark:before:bg-dark-seekbar-background-color/75 dark:hover:before:bg-dark-font-color-highlight relative float-left m-0 h-6 w-full appearance-none bg-[transparent] p-0 outline-hidden outline-offset-1 before:absolute before:top-1/2 before:left-0 before:h-1 before:w-[var(--seek-before-width)] before:-translate-y-1/2 before:cursor-pointer before:rounded-3xl before:transition-[width,background] before:content-[''] focus-visible:outline!"
-      }
+      className={finalClassName}
       min={0}
       max={(currentSongData.duration || 0) >= songPos ? currentSongData.duration || 0 : songPos}
       value={songPos || 0}

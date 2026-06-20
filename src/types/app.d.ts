@@ -134,6 +134,16 @@ declare global {
     // titleTextColor?: string;
   }
 
+  /** Result from an online YouTube Music search. */
+  interface OnlineSongResult {
+    videoId: string;
+    title: string;
+    artists: string[];
+    album?: string;
+    duration: number; // seconds
+    thumbnailUrl?: string;
+  }
+
   interface AudioPlayerData {
     songId: number;
     title: string;
@@ -152,6 +162,10 @@ declare global {
     paletteData?: PaletteData;
     isKnownSource: boolean;
     isBlacklisted: boolean;
+    /** True when this song is streamed from an online source (YouTube Music). */
+    isOnlineStream?: boolean;
+    /** The YouTube video ID for online streams. */
+    onlineVideoId?: string;
   }
 
   interface AudioInfo {

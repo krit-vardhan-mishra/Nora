@@ -125,7 +125,7 @@ const List = <T extends object>(props: Props<T>, ref) => {
   const {
     data,
     fixedItemHeight,
-    scrollTopOffset,
+    scrollTopOffset = 0,
     itemContent,
     components = {},
     scrollerRef,

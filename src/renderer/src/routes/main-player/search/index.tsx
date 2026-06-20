@@ -5,12 +5,14 @@ import AlbumSearchResultsContainer from '@renderer/components/SearchPage/Result_
 import ArtistsSearchResultsContainer from '@renderer/components/SearchPage/Result_Containers/ArtistsSearchResultsContainer';
 import GenreSearchResultsContainer from '@renderer/components/SearchPage/Result_Containers/GenreSearchResultsContainer';
 import MostRelevantSearchResultsContainer from '@renderer/components/SearchPage/Result_Containers/MostRelevantSearchResultsContainer';
+import OnlineSearchResultsContainer from '@renderer/components/SearchPage/Result_Containers/OnlineSearchResultsContainer';
 import PlaylistSearchResultsContainer from '@renderer/components/SearchPage/Result_Containers/PlaylistSearchResultsContainer';
 import SongSearchResultsContainer from '@renderer/components/SearchPage/Result_Containers/SongSearchResultsContainer';
 import { searchFilter } from '@renderer/components/SearchPage/SearchOptions';
 import SearchResultsFilter from '@renderer/components/SearchPage/SearchResultsFilter';
 import SearchStartPlaceholder from '@renderer/components/SearchPage/SearchStartPlaceholder';
 import useResizeObserver from '@renderer/hooks/useResizeObserver';
+import { onlineMusicQuery } from '@renderer/queries/onlineMusic';
 import { searchQuery } from '@renderer/queries/search';
 import { store } from '@renderer/store/store';
 import storage from '@renderer/utils/localStorage';
@@ -63,14 +65,22 @@ function SearchPage() {
   const searchContainerRef = useRef(null);
   const { width } = useResizeObserver(searchContainerRef);
   const [searchText, setSearchText] = useState(keyword);
+  const [isOnlineSearch, setIsOnlineSearch] = useState(false);
 
+  // Local library search query
   const { data: searchResults } = useQuery({
     ...searchQuery.query({
       keyword: keyword ?? '',
       filter: filterBy ?? 'all',
       isSimilaritySearchEnabled
     }),
-    enabled: (keyword ?? '').trim().length > 0
+    enabled: (keyword ?? '').trim().length > 0 && !isOnlineSearch
+  });
+
+  // Online search query (YouTube Music)
+  const { data: onlineResults, isFetching: isOnlineSearching } = useQuery({
+    ...onlineMusicQuery.search({ query: keyword ?? '' }),
+    enabled: (keyword ?? '').trim().length > 0 && isOnlineSearch
   });
 
   const throttledSetSearch = useThrottledCallback(
@@ -155,7 +165,11 @@ function SearchPage() {
               id="searchBar"
               className="text-font-color-black placeholder:text-font-color-highlight dark:text-font-color-white dark:placeholder:text-dark-font-color-highlight h-full w-full border-2 border-[transparent] bg-[transparent] outline-hidden"
               aria-label="Search"
-              placeholder={t('searchPage.searchForAnything')}
+              placeholder={
+                isOnlineSearch
+                  ? t('searchPage.searchOnline', 'Search YouTube Music...')
+                  : t('searchPage.searchForAnything')
+              }
               value={searchText}
               onChange={(e) => updateSearchInput(e.currentTarget.value)}
               onKeyDown={(e) => e.stopPropagation()}
@@ -163,6 +177,25 @@ function SearchPage() {
               autoFocus
             />
           </div>
+
+          {/* ONLINE / LIBRARY TOGGLE */}
+          <Button
+            className={`ml-3! rounded-3xl! border-none px-4! py-2! shadow-sm outline-offset-1 focus-visible:outline! ${
+              isOnlineSearch
+                ? 'bg-background-color-3 dark:bg-dark-background-color-3 text-black!'
+                : 'bg-background-color-1/50 text-font-color-highlight! hover:bg-background-color-1 focus-visible:bg-background-color-1 dark:bg-dark-background-color-1/50 dark:text-dark-font-color-highlight! dark:hover:bg-dark-background-color-1 dark:focus-visible:bg-dark-background-color-1'
+            }`}
+            iconName={isOnlineSearch ? 'language' : 'library_music'}
+            label={isOnlineSearch ? t('searchPage.online', 'Online') : t('searchPage.library', 'Library')}
+            tooltipLabel={
+              isOnlineSearch
+                ? t('searchPage.switchToLibrary', 'Switch to library search')
+                : t('searchPage.switchToOnline', 'Switch to online search')
+            }
+            iconClassName="material-icons-round-outlined"
+            clickHandler={() => setIsOnlineSearch((prev) => !prev)}
+          />
+
           <span
             className="material-icons-round-outlined text-font-color-highlight dark:text-dark-font-color-highlight ml-4 cursor-help text-2xl"
             title={t('searchPage.separateKeywords')}
@@ -170,13 +203,31 @@ function SearchPage() {
             help
           </span>
         </div>
-        {/* SEARCH FILTERS */}
-        <div className="search-filters-container mb-6">
-          <ul className="flex items-center">{filters}</ul>
-        </div>
+        {/* SEARCH FILTERS — only show for library search */}
+        {!isOnlineSearch && (
+          <div className="search-filters-container mb-6">
+            <ul className="flex items-center">{filters}</ul>
+          </div>
+        )}
+        {/* Online search indicator */}
+        {isOnlineSearch && (
+          <div className="search-filters-container mb-6">
+            <div className="text-font-color-highlight dark:text-dark-font-color-highlight flex items-center gap-2 text-sm">
+              <span className="material-icons-round-outlined text-lg">language</span>
+              {t('searchPage.onlineSearchDescription', 'Searching YouTube Music for songs to stream')}
+              {isOnlineSearching && (
+                <span className="material-icons-round animate-spin text-lg">hourglass_top</span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
       <div className="search-results-container relative h-full!">
-        {searchResults && (
+        {/* ONLINE RESULTS */}
+        {isOnlineSearch && onlineResults && <OnlineSearchResultsContainer results={onlineResults} />}
+
+        {/* LIBRARY RESULTS */}
+        {!isOnlineSearch && searchResults && (
           <>
             {/* MOST RELEVANT SEARCH RESULTS */}
             <MostRelevantSearchResultsContainer searchResults={searchResults} />
@@ -224,7 +275,7 @@ function SearchPage() {
         )}
         {/* SEARCH START PLACEHOLDER */}
         <SearchStartPlaceholder
-          searchResults={searchResults}
+          searchResults={isOnlineSearch ? undefined : searchResults}
           searchInput={keyword}
           updateSearchInput={updateSearchInput}
         />

@@ -113,7 +113,36 @@ export function useQueueManagement(dependencies: QueueManagementDependencies) {
    *
    * When disabling shuffle: - Restores the original queue order - Keeps the current song in place
    */
-  const toggleQueueShuffle = useCallback(() => {
+  const toggleQueueShuffle = useCallback(async () => {
+    const currentSong = store.state.currentSongData;
+    const isOnline = currentSong?.isOnlineStream === true;
+
+    if (isOnline && currentSong?.onlineVideoId) {
+      console.log(`[OnlineQueue] Shuffle/Regenerate recommendations clicked for online song: "${currentSong.title}" (${currentSong.onlineVideoId})`);
+      try {
+        // Fetch new recommendations based on current video ID
+        const recommendations = await window.api.onlineMusic.getOnlineRecommendations(currentSong.onlineVideoId);
+        
+        // Cache recommended songs and get their IDs
+        const recommendedSongIds: number[] = [];
+        for (const rec of recommendations) {
+          const id = await window.api.onlineMusic.cacheOnlineSong(rec);
+          recommendedSongIds.push(id);
+        }
+
+        // Keep only the currently playing song at the start (index 0) of the queue and remove previous songs
+        const currentSongId = currentSong.songId;
+        const newQueue = [currentSongId, ...recommendedSongIds];
+        console.log(`[OnlineQueue] Replacing queue with current song and new recommendations. New total queue length: ${newQueue.length}`);
+        
+        // Replace queue, setting the current position to 0
+        playerQueue.replaceQueue(newQueue, 0, true);
+      } catch (err) {
+        console.error('[OnlineQueue] Failed to regenerate recommendations:', err);
+      }
+      return;
+    }
+
     const wasShuffling = store.state.player.isShuffling;
 
     if (wasShuffling) {
@@ -132,9 +161,6 @@ export function useQueueManagement(dependencies: QueueManagementDependencies) {
       }
       toggleShuffling(true);
     }
-
-    // Event listeners will handle localStorage sync automatically
-    // storage.queue.setQueue(playerQueue);
   }, [playerQueue, toggleShuffling]);
 
   /**

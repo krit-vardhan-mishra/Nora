@@ -1,5 +1,6 @@
 import { addSongToPlayHistory } from '@main/db/queries/history';
 import { getPlayableSongById } from '@main/db/queries/songs';
+import { getOnlineSongFromCache, getOnlineStreamUrl, addToOnlineListenedSongs } from './onlineMusic';
 import { setDiscordRpcActivity } from '@main/other/discordRPC';
 import sharp from 'sharp';
 
@@ -73,6 +74,39 @@ const getArtworkBuffer = async (artworkPath: string) => {
 
 const sendAudioData = async (songId: number): Promise<AudioPlayerData> => {
   logger.debug(`Fetching song data for song id -${songId}-`);
+  if (songId < 0) {
+    logger.debug(`Detected negative song ID: ${songId}. Checking online cache...`);
+    const cachedSong = getOnlineSongFromCache(songId);
+    if (cachedSong) {
+      try {
+        logger.info(`[sendAudioData] Resolving fresh stream URL for online song: "${cachedSong.title}" (${cachedSong.onlineVideoId})`);
+        const freshStreamUrl = await getOnlineStreamUrl(cachedSong.onlineVideoId!);
+        cachedSong.path = freshStreamUrl;
+        
+        // Update Discord RPC activity
+        const now = Date.now();
+        setDiscordRpcActivity({
+          details: `Listening to '${cachedSong.title}'`,
+          state: `By ${cachedSong.artists?.map((artist) => artist.name).join(', ') || 'Unknown Artist'}`,
+          largeImageKey: 'nora_logo',
+          smallImageKey: 'song_artwork',
+          startTimestamp: now,
+          endTimestamp: now + cachedSong.duration * 1000
+        });
+
+        // Add to online list history (excluding recommendations)
+        addToOnlineListenedSongs(cachedSong);
+        
+        return cachedSong;
+      } catch (streamError) {
+        logger.error(`[sendAudioData] Failed to resolve stream URL for cached online song ${songId}`, { err: streamError });
+        throw new Error('SONG_DATA_SEND_FAILED' as ErrorCodes);
+      }
+    } else {
+      logger.error(`[sendAudioData] Online song not found in cache for ID: ${songId}`);
+      throw new Error('SONG_NOT_FOUND' as ErrorCodes);
+    }
+  }
   try {
     const song = await getPlayableSongById(songId);
 

@@ -6,6 +6,7 @@ import MostLovedSongs from '@renderer/components/HomePage/MostLovedSongs';
 import RecentlyAddedSongs from '@renderer/components/HomePage/RecentlyAddedSongs';
 import RecentlyPlayedArtists from '@renderer/components/HomePage/RecentlyPlayedArtists';
 import RecentlyPlayedSongs from '@renderer/components/HomePage/RecentlyPlayedSongs';
+import RecentlyPlayedOnlineSongs from '@renderer/components/HomePage/RecentlyPlayedOnlineSongs';
 import SpecialPlaylistCard from '@renderer/components/HomePage/SpecialPlaylistCard';
 import MainContainer from '@renderer/components/MainContainer';
 import SecondaryContainer from '@renderer/components/SecondaryContainer';
@@ -32,6 +33,7 @@ export const Route = createFileRoute('/main-player/home/')({
       songQuery.all({ sortType: 'dateAddedDescending', start: 0, end: 30 })
     );
     await queryClient.ensureQueryData(homeQuery.recentlyPlayedSongs);
+    await queryClient.ensureQueryData(homeQuery.recentlyPlayedOnlineSongs);
     await queryClient.ensureQueryData(homeQuery.recentSongArtists);
     await queryClient.ensureQueryData(homeQuery.mostLovedSongs);
     await queryClient.ensureQueryData(
@@ -59,6 +61,7 @@ function HomePage() {
     data: { data: latestSongs }
   } = useSuspenseQuery(songQuery.all({ sortType: 'dateAddedDescending', start: 0, end: 30 }));
   const { data: recentlyPlayedSongs } = useSuspenseQuery(homeQuery.recentlyPlayedSongs);
+  const { data: recentlyPlayedOnlineSongs } = useSuspenseQuery(homeQuery.recentlyPlayedOnlineSongs);
 
   const { data: recentSongArtists } = useSuspenseQuery(homeQuery.recentSongArtists);
 
@@ -326,6 +329,10 @@ function HomePage() {
             )}
             <RecentlyPlayedSongs
               recentlyPlayedSongs={recentlyPlayedSongs.slice(0, noOfRecentandLovedSongCards)}
+              noOfVisibleSongs={noOfRecentandLovedSongCards}
+            />
+            <RecentlyPlayedOnlineSongs
+              recentlyPlayedOnlineSongs={recentlyPlayedOnlineSongs}
               noOfVisibleSongs={noOfRecentandLovedSongCards}
             />
             <RecentlyPlayedArtists

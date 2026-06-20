@@ -730,7 +730,8 @@
 
   "sideBar": {
     "home": "Home",
-    "search": "Search"
+    "search": "Search",
+    "onlineSongs": "Online Songs"
   },
 
   "renamePlaylistPrompt": {
@@ -1039,7 +1040,8 @@
     "playbackRateChanged": "Playback rate changed to {{val}} x",
     "playbackRateReset": "Playback rate has been reset to 1x",
     "playbackPausedDueToSongDeletion": "Current song playback paused because the song was deleted.",
-    "languageChanged": "Changed app language successfully."
+    "languageChanged": "Changed app language successfully.",
+    "removedFromHistory": "`{{title}}` removed from history."
   },
 
   "backend": {
@@ -1116,5 +1118,8 @@
     "untitledSong": "An untitled song",
     "unknownArtist": "an unknown artist",
     "playingASong": "Playing a song"
+  },
+  "onlineSongs": {
+    "removeFromHistory": "Remove from history"
   }
 }

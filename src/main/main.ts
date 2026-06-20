@@ -279,6 +279,48 @@ protocol.registerSchemesAsPrivileged([
 app
   .whenReady()
   .then(async () => {
+    // Bypass CORS for googlevideo.com so Web Audio API can process the online streams
+    electronSession.defaultSession.webRequest.onBeforeSendHeaders(
+      { urls: ['*://*.googlevideo.com/*', '*://*.youtube.com/*'] },
+      (details, callback) => {
+        details.requestHeaders['Origin'] = 'https://www.youtube.com';
+        details.requestHeaders['Referer'] = 'https://www.youtube.com/';
+        details.requestHeaders['Sec-Fetch-Site'] = 'same-origin';
+        details.requestHeaders['Sec-Fetch-Mode'] = 'cors';
+        details.requestHeaders['Sec-Fetch-Dest'] = 'audio';
+        callback({ requestHeaders: details.requestHeaders });
+      }
+    );
+
+    electronSession.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+      if (details.url.includes('googlevideo.com') || details.url.includes('youtube.com')) {
+        const responseHeaders = { ...details.responseHeaders };
+        const headersToRemove = [
+          'access-control-allow-origin',
+          'access-control-allow-methods',
+          'access-control-allow-headers',
+          'access-control-expose-headers',
+          'access-control-allow-credentials'
+        ];
+        for (const key of Object.keys(responseHeaders)) {
+          if (headersToRemove.includes(key.toLowerCase())) {
+            delete responseHeaders[key];
+          }
+        }
+        callback({
+          responseHeaders: {
+            ...responseHeaders,
+            'Access-Control-Allow-Origin': ['*'],
+            'Access-Control-Allow-Methods': ['GET, POST, OPTIONS'],
+            'Access-Control-Allow-Headers': ['Range, Content-Type'],
+            'Access-Control-Expose-Headers': ['Content-Length, Content-Range, Accept-Ranges']
+          }
+        });
+      } else {
+        callback({ responseHeaders: details.responseHeaders });
+      }
+    });
+
     const { windowState, zoomFactor } = await getUserSettings();
 
     currentWindowZoomFactor = normalizeZoomFactor(zoomFactor);

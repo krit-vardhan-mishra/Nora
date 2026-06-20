@@ -117,7 +117,7 @@ const UpNextSongPopup = (props: Props) => {
 
   const showSongInfoPage = useCallback(
     (songId: number) =>
-      currentSongData.isKnownSource
+      currentSongData.isKnownSource || songId < 0
         ? navigate({
             to: '/main-player/songs/$songId',
             params: { songId: String(songId) }

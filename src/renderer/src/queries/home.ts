@@ -19,6 +19,18 @@ export const homeQuery = createQueryKeys('home', {
       return data;
     }
   },
+  recentlyPlayedOnlineSongs: {
+    queryKey: null,
+    queryFn: async (): Promise<AudioPlayerData[]> => {
+      try {
+        const data = await window.api.onlineMusic.getOnlineListenedSongs();
+        return Array.isArray(data) ? data : [];
+      } catch (error) {
+        console.error(error);
+        return [];
+      }
+    }
+  },
   recentSongArtists: {
     queryKey: null,
     queryFn: async (): Promise<Artist[]> => {

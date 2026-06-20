@@ -75,9 +75,8 @@ class AudioPlayer {
    * changes. Propagates queue events through player for convenience.
    */
   private setupQueueIntegration() {
-    // React to queue position changes - load the new song
-    this.queue.on('positionChange', () => {
-      const songId = this.queue.currentSongId;
+    this.queue.on('positionChange', (data) => {
+      const songId = data?.currentSongId || this.queue.currentSongId;
       console.log('[AudioPlayer.positionChange]', {
         position: this.queue.position,
         songId,
@@ -85,10 +84,15 @@ class AudioPlayer {
         pendingAutoPlay: this.pendingAutoPlay
       });
       if (songId) {
-        this.loadSong(songId, { autoPlay: this.pendingAutoPlay }).catch((err) => {
-          console.error('[AudioPlayer.positionChange] Failed to load song:', err);
-          // Error will be handled by error event listener
-        });
+        // If the song ID is the same as the current playing song, and we are not forcing a play,
+        // we can avoid reloading the song to prevent audio interruption (e.g. during shuffle)
+        const isSameSong = songId === store.state.currentSongData?.songId;
+        if (!isSameSong || this.pendingAutoPlay) {
+          this.loadSong(songId, { autoPlay: this.pendingAutoPlay }).catch((err) => {
+            console.error('[AudioPlayer.positionChange] Failed to load song:', err);
+            // Error will be handled by error event listener
+          });
+        }
         this.pendingAutoPlay = false; // Reset after use
       }
     });
@@ -109,25 +113,47 @@ class AudioPlayer {
    * errors, etc.
    */
   private setupAudioEventListeners() {
-    this.audio.addEventListener('ended', () => this.handleSongEnd());
+    this.audio.addEventListener('ended', () => {
+      console.log('[AudioPlayer.audio] Song playback ended.');
+      this.handleSongEnd();
+    });
 
     this.audio.addEventListener('timeupdate', () => {
       this.emit('timeUpdate', this.audio.currentTime);
     });
 
     this.audio.addEventListener('loadedmetadata', () => {
+      console.log('[AudioPlayer.audio] Metadata loaded:', {
+        duration: this.audio.duration,
+        src: this.audio.src,
+        crossOrigin: this.audio.crossOrigin
+      });
       this.emit('durationChange', this.audio.duration);
     });
 
     this.audio.addEventListener('play', () => {
+      console.log('[AudioPlayer.audio] Play event fired. Audio details:', {
+        src: this.audio.src,
+        crossOrigin: this.audio.crossOrigin,
+        paused: this.audio.paused,
+        currentTime: this.audio.currentTime,
+        networkState: this.audio.networkState,
+        readyState: this.audio.readyState
+      });
       this.emit('play');
     });
 
     this.audio.addEventListener('pause', () => {
+      console.log('[AudioPlayer.audio] Pause event fired.');
       this.emit('pause');
     });
 
     this.audio.addEventListener('error', (e) => {
+      console.error('[AudioPlayer.audio] Error event fired. Details:', {
+        error: this.audio.error,
+        src: this.audio.src,
+        crossOrigin: this.audio.crossOrigin
+      });
       this.emit('error', e);
     });
 
@@ -191,8 +217,11 @@ class AudioPlayer {
     }
 
     try {
-      console.log('[AudioPlayer.loadSong]', {
+      console.log('[AudioPlayer.loadSong] Loading song:', {
         songId: songData.songId,
+        title: songData.title,
+        isOnlineStream: songData.isOnlineStream,
+        path: songData.path,
         options
       });
 
@@ -204,8 +233,21 @@ class AudioPlayer {
         storage.playback.setCurrentSongOptions('songId', songData.songId);
       }
 
-      // Set audio source with cache-busting timestamp
-      this.audio.src = `${songData.path}?ts=${Date.now()}`;
+      // Configure crossOrigin BEFORE setting src
+      if (songData.isOnlineStream) {
+        console.log('[AudioPlayer.loadSong] Setting crossOrigin = "anonymous" for online stream.');
+        this.audio.crossOrigin = 'anonymous';
+      } else {
+        console.log('[AudioPlayer.loadSong] Removing crossOrigin attribute for local/offline file.');
+        this.audio.removeAttribute('crossorigin');
+      }
+
+      // Set audio source — online streams already have unique URLs, local files get cache-busting
+      this.audio.src = songData.isOnlineStream
+        ? songData.path
+        : `${songData.path}?ts=${Date.now()}`;
+
+      console.log('[AudioPlayer.loadSong] Audio source set to:', this.audio.src);
 
       // Load is synchronous, no need to await
       this.audio.load();
@@ -215,12 +257,15 @@ class AudioPlayer {
         // Check if audio is already ready to play (cached/buffered)
         if (this.audio.readyState >= 3) {
           // HAVE_FUTURE_DATA or HAVE_ENOUGH_DATA - ready to play
+          console.log('[AudioPlayer.loadSong] ReadyState is high, playing immediately.');
           this.play().catch((err) =>
             console.error('[AudioPlayer] Immediate auto-play failed:', err)
           );
         } else {
           // Wait for canplay event
+          console.log('[AudioPlayer.loadSong] Waiting for "canplay" event to start playing.');
           const autoPlayHandler = () => {
+            console.log('[AudioPlayer.loadSong.autoPlay] "canplay" event fired. Playing now.');
             this.play().catch((err) =>
               console.error('[AudioPlayer] Auto-play on canplay failed:', err)
             );
@@ -237,9 +282,10 @@ class AudioPlayer {
       this.audio.dispatchEvent(trackChangeEvent);
 
       this.emit('songLoaded', songData);
-      console.log('[AudioPlayer.loadSong.done]', {
+      console.log('[AudioPlayer.loadSong.done] Successfully loaded song:', {
         songId: songData.songId,
-        title: songData.title
+        title: songData.title,
+        isOnlineStream: songData.isOnlineStream
       });
 
       return songData;
@@ -340,6 +386,7 @@ class AudioPlayer {
   }
 
   private initializeEqualizer() {
+    console.log('[AudioPlayer.initializeEqualizer] Initializing Web Audio graph and equalizer.');
     for (const [filterName, hertzValue] of Object.entries(equalizerBandHertzData)) {
       const equalizerFilterName = filterName as EqualizerBandFilters;
       const equalizerBand = this.currentContext.createBiquadFilter();
@@ -411,12 +458,19 @@ class AudioPlayer {
 
   /** Starts or resumes audio playback with fade-in effect. */
   play() {
+    console.log('[AudioPlayer.play] Initiating playback. Current state:', {
+      src: this.audio.src,
+      crossOrigin: this.audio.crossOrigin,
+      paused: this.audio.paused,
+      currentTime: this.audio.currentTime
+    });
     this.audio.play();
     return this.fadeInAudio();
   }
 
   /** Pauses audio playback with fade-out effect. */
   pause() {
+    console.log('[AudioPlayer.pause] Initiating pause.');
     return this.fadeOutAudio();
   }
 
@@ -605,6 +659,21 @@ class AudioPlayer {
       console.error('[AudioPlayer.playSongAtPosition] Failed to move to position:', position);
     }
     // Song will be auto-loaded via queue's positionChange event
+  }
+
+  /**
+   * Plays an online song by directly loading its AudioPlayerData (which contains a stream URL
+   * as `path`). Bypasses the queue system since online songs are not part of the local library.
+   *
+   * @param songData - The AudioPlayerData with isOnlineStream=true and a stream URL path
+   */
+  async playOnlineSong(songData: AudioPlayerData): Promise<void> {
+    console.log('[AudioPlayer.playOnlineSong] Playing online song:', {
+      title: songData.title,
+      videoId: songData.onlineVideoId,
+      path: songData.path
+    });
+    await this.loadSong(songData, { autoPlay: true, updateStore: true });
   }
 
   // ========== REPEAT MODE MANAGEMENT ==========

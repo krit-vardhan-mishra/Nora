@@ -47,8 +47,13 @@ function RouteComponent() {
   const currentQueue = useStore(store, (state) => state.localStorage.queue.songIds);
   const preferences = useStore(store, (state) => state.localStorage.preferences);
 
-  const { updateQueueData, addNewNotifications, updateContextMenuData, toggleMultipleSelections } =
-    useContext(AppUpdateContext);
+  const {
+    updateQueueData,
+    addNewNotifications,
+    updateContextMenuData,
+    toggleMultipleSelections,
+    changeQueueCurrentSongIndex
+  } = useContext(AppUpdateContext);
   const { t } = useTranslation();
   const { scrollTopOffset } = Route.useSearch();
 
@@ -383,8 +388,7 @@ function RouteComponent() {
                                   {...song}
                                   trackNo={undefined}
                                   selectAllHandler={selectAllHandler}
-                                  // no need for onPlayClick because the component is in the currentQueuePage
-                                  // onPlayClick={handleSongPlayBtnClick}
+                                  onPlayClick={() => changeQueueCurrentSongIndex(index)}
                                   additionalContextMenuItems={[
                                     {
                                       label: t('common.removeFromQueue'),

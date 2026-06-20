@@ -63,7 +63,7 @@ const CurrentlyPlayingSongInfoContainer = () => {
 
   const showSongInfoPage = useCallback(
     (songId: number) =>
-      currentSongData.isKnownSource
+      currentSongData.isKnownSource || songId < 0
         ? navigate({
             to: '/main-player/songs/$songId',
             params: { songId: String(songId) }
@@ -281,9 +281,9 @@ const CurrentlyPlayingSongInfoContainer = () => {
               to="/main-player/songs/$songId"
               params={{ songId: String(currentSongData.songId) }}
               className={`text-font-color-highlight w-fit max-w-full cursor-pointer overflow-hidden text-2xl font-medium text-ellipsis whitespace-nowrap outline-offset-1 focus-visible:outline! ${
-                currentSongData.isKnownSource && 'hover:underline'
+                (currentSongData.isKnownSource || currentSongData.songId < 0) && 'hover:underline'
               }`}
-              disabled={!currentSongData.isKnownSource}
+              disabled={!currentSongData.isKnownSource && currentSongData.songId >= 0}
               id="currentSongTitle"
               title={currentSongData.title}
               onContextMenu={(e) => {

@@ -465,6 +465,24 @@ const Song = forwardRef((props: SongProp, ref: ForwardedRef<HTMLDivElement>) => 
 
     if (additionalContextMenuItems) items.unshift(...additionalContextMenuItems);
 
+    if (songId < 0) {
+      const allowedLabels = [
+        t('common.play'),
+        t('common.playNext'),
+        t('common.playNextAll'),
+        t('common.addToQueue'),
+        t(`common.${isAMultipleSelection ? 'unselect' : 'select'}`),
+        t('common.removeFromQueue'),
+        'Hr'
+      ];
+      return items.filter((item) => {
+        if (additionalContextMenuItems && additionalContextMenuItems.includes(item)) {
+          return true;
+        }
+        return allowedLabels.includes(item.label);
+      });
+    }
+
     return items;
   }, [
     multipleSelectionsData,
@@ -668,27 +686,29 @@ const Song = forwardRef((props: SongProp, ref: ForwardedRef<HTMLDivElement>) => 
             : (year ?? '----')}
         </div>
         <div className="song-duration flex w-full! items-center justify-between pr-4 pl-2 text-center transition-none sm:pr-1">
-          <Button
-            className="mt-1 mr-0! rounded-none! border-0! bg-transparent p-0! text-inherit! outline-offset-1 focus-visible:outline! dark:bg-transparent"
-            iconName="favorite"
-            iconClassName={`${
-              isAFavorite ? 'material-icons-round' : 'material-icons-round-outlined'
-            } leading-none! text-xl! font-light! md:hidden ${
-              isAFavorite
-                ? currentSongData.songId === songId || isAMultipleSelection
-                  ? 'text-font-color-black! dark:text-font-color-black!'
-                  : 'text-font-color-highlight! dark:text-dark-background-color-3!'
-                : currentSongData.songId === songId || isAMultipleSelection
-                  ? 'text-font-color-black! dark:text-font-color-black!'
-                  : 'text-font-color-highlight! dark:text-dark-background-color-3!'
-            }`}
-            tooltipLabel={t(`song.${isAFavorite ? 'likedThisSong' : 'dislikedThisSong'}`)}
-            clickHandler={(e) => {
-              e.stopPropagation();
-              handleLikeButtonClick();
-            }}
-          />
-          <span className="">
+          {songId >= 0 && (
+            <Button
+              className="mt-1 mr-0! rounded-none! border-0! bg-transparent p-0! text-inherit! outline-offset-1 focus-visible:outline! dark:bg-transparent"
+              iconName="favorite"
+              iconClassName={`${
+                isAFavorite ? 'material-icons-round' : 'material-icons-round-outlined'
+              } leading-none! text-xl! font-light! md:hidden ${
+                isAFavorite
+                  ? currentSongData.songId === songId || isAMultipleSelection
+                    ? 'text-font-color-black! dark:text-font-color-black!'
+                    : 'text-font-color-highlight! dark:text-dark-font-color-highlight!'
+                  : currentSongData.songId === songId || isAMultipleSelection
+                    ? 'text-font-color-black! dark:text-font-color-black!'
+                    : 'text-font-color-highlight! dark:text-dark-font-color-highlight!'
+              }`}
+              tooltipLabel={t(`song.${isAFavorite ? 'likedThisSong' : 'dislikedThisSong'}`)}
+              clickHandler={(e) => {
+                e.stopPropagation();
+                handleLikeButtonClick();
+              }}
+            />
+          )}
+          <span className={`${songId < 0 ? 'w-full text-right' : ''}`}>
             {minutes ?? '--'}:{seconds ?? '--'}
           </span>
         </div>

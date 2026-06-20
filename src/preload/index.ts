@@ -567,6 +567,28 @@ const appControls = {
   allowScreenSleeping: () => ipcRenderer.send('app/allowScreenSleeping')
 };
 
+// $ ONLINE MUSIC STREAMING
+const onlineMusic = {
+  searchOnlineSongs: (query: string): Promise<OnlineSongResult[]> =>
+    ipcRenderer.invoke('app/searchOnlineSongs', query),
+  getOnlineStreamUrl: (videoId: string): Promise<string> =>
+    ipcRenderer.invoke('app/getOnlineStreamUrl', videoId),
+  isYouTubeLoggedIn: (): Promise<boolean> => ipcRenderer.invoke('app/isYouTubeLoggedIn'),
+  loginToYouTube: (): Promise<void> => ipcRenderer.invoke('app/loginToYouTube'),
+  onYouTubeLoginPending: (callback: (e: unknown, data: { verification_url: string; user_code: string }) => void) => {
+    ipcRenderer.removeAllListeners('app/youtubeLoginPending');
+    ipcRenderer.on('app/youtubeLoginPending', callback);
+  },
+  cacheOnlineSong: (song: AudioPlayerData | OnlineSongResult): Promise<number> =>
+    ipcRenderer.invoke('app/cacheOnlineSong', song),
+  getOnlineRecommendations: (videoId: string): Promise<OnlineSongResult[]> =>
+    ipcRenderer.invoke('app/getOnlineRecommendations', videoId),
+  getOnlineListenedSongs: (): Promise<AudioPlayerData[]> =>
+    ipcRenderer.invoke('app/getOnlineListenedSongs'),
+  removeFromOnlineListenedSongs: (songId: number): Promise<boolean> =>
+    ipcRenderer.invoke('app/removeFromOnlineListenedSongs', songId)
+};
+
 // $ OTHER
 const utils = {
   showFilePath: (file: File) => {
@@ -624,6 +646,7 @@ export const api = {
   settings,
   settingsHelpers,
   appControls,
+  onlineMusic,
   utils,
   queue
 };

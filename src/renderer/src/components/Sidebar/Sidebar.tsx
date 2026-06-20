@@ -33,6 +33,14 @@ const Sidebar = memo(() => {
           isActive: false
         },
         {
+          to: '/main-player/online-songs',
+          id: 'OnlineSongs',
+          parentClassName: 'online-songs',
+          icon: 'language',
+          content: t('sideBar.onlineSongs', 'Online Songs'),
+          isActive: false
+        },
+        {
           to: '/main-player/songs',
           id: 'Songs',
           parentClassName: 'songs',

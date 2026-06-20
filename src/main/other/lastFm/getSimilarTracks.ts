@@ -1,6 +1,7 @@
 import { getSongById, getSongsByNames } from '@main/db/queries/songs';
 import { convertToSongData } from '@main/utils/convert';
 
+import { getOnlineSongFromCache } from '../../core/onlineMusic';
 import type {
   LastFMSimilarTracksAPI,
   ParsedSimilarTrack,
@@ -62,11 +63,22 @@ const getSimilarTracks = async (songId: number): Promise<SimilarTracksOutput> =>
     const isOnline = checkIfConnectedToInternet();
     if (!isOnline) throw new Error('App not connected to internet.');
 
-    const song = await getSongById(songId);
-    if (!song) throw new Error(`Song with id of ${songId} not found in the database.`);
+    let title = '';
+    let artistsStr = '';
 
-    const { title, artists } = convertToSongData(song);
-    const artistsStr = artists?.map((artist) => artist.name).join(', ') || '';
+    if (songId < 0) {
+      const cachedSong = getOnlineSongFromCache(songId);
+      if (!cachedSong) throw new Error(`Song with id of ${songId} not found in the online cache.`);
+      title = cachedSong.title;
+      artistsStr = cachedSong.artists?.map((artist) => artist.name).join(', ') || '';
+    } else {
+      const song = await getSongById(songId);
+      if (!song) throw new Error(`Song with id of ${songId} not found in the database.`);
+
+      const { title: t, artists } = convertToSongData(song);
+      title = t;
+      artistsStr = artists?.map((artist) => artist.name).join(', ') || '';
+    }
 
     const url = new URL('http://ws.audioscrobbler.com/2.0/');
     url.searchParams.set('method', 'track.getSimilar');
@@ -88,10 +100,10 @@ const getSimilarTracks = async (songId: number): Promise<SimilarTracksOutput> =>
 
       return parsedAndSortedSimilarTracks;
     }
-    return undefined;
+    return { sortedAvailTracks: [], sortedUnAvailTracks: [] };
   } catch (error) {
     logger.error('Failed to get similar tracks of a song.', { error, songId });
-    return undefined;
+    return { sortedAvailTracks: [], sortedUnAvailTracks: [] };
   }
 };
 

@@ -152,7 +152,7 @@ export function useAppLifecycle(dependencies: AppLifecycleDependencies): void {
       .then((startUpSongData) => {
         if (startUpSongData) {
           playSongFromUnknownSource(startUpSongData, true);
-        } else if (playback?.currentSong.songId) {
+        } else if (playback?.currentSong.songId && playback.currentSong.songId !== -1) {
           // Resume previous song
           playSong(playback.currentSong.songId, false);
 
