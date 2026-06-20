@@ -163,10 +163,11 @@ export async function getOnlineStreamUrl(videoId: string): Promise<string> {
   try {
     logger.info(`[OnlineStream] Fetching stream URL for videoId: "${videoId}" using yt-dlp`);
 
-    // As per user instructions, checking for yt-dlp.exe in the project root for now.
-    // In the future, this will check userData or download it if missing.
-    const projectRoot = path.resolve(process.cwd());
-    const ytDlpPath = path.join(projectRoot, 'yt-dlp.exe');
+    // In packaged builds, yt-dlp.exe is bundled as an extraResource under process.resourcesPath.
+    // In development, it sits in the project root (process.cwd()).
+    const ytDlpPath = app.isPackaged
+      ? path.join(process.resourcesPath, 'yt-dlp.exe')
+      : path.join(path.resolve(process.cwd()), 'yt-dlp.exe');
 
     if (!fs.existsSync(ytDlpPath)) {
       throw new Error(`yt-dlp executable not found at ${ytDlpPath}. Please download it or enable downloading.`);
