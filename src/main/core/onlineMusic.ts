@@ -1,5 +1,6 @@
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import fs from 'fs';
+import https from 'https';
 import path from 'path';
 import { promisify } from 'util';
 import { app, session } from 'electron';
@@ -8,7 +9,7 @@ import { Innertube, UniversalCache } from 'youtubei.js';
 
 import logger from '../logger';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 let innertubeClient: Innertube | null = null;
 
@@ -159,15 +160,136 @@ function parseDurationText(text: string): number {
   return 0;
 }
 
+export function getYtDlpPath(): string {
+  const userDataPath = path.join(app.getPath('userData'), 'yt-dlp.exe');
+  if (fs.existsSync(userDataPath)) {
+    return userDataPath;
+  }
+  return app.isPackaged
+    ? path.join(process.resourcesPath, 'yt-dlp.exe')
+    : path.join(path.resolve(process.cwd()), 'yt-dlp.exe');
+}
+
+export async function isYtDlpInstalled(): Promise<boolean> {
+  const ytDlpPath = getYtDlpPath();
+  const exists = fs.existsSync(ytDlpPath);
+  logger.info(`[OnlineStream] Checking if yt-dlp is installed. Path: "${ytDlpPath}" exists: ${exists}`);
+  return exists;
+}
+
+export async function downloadYtDlp(event: Electron.IpcMainInvokeEvent): Promise<void> {
+  const destDir = app.getPath('userData');
+  const tempPath = path.join(destDir, 'yt-dlp.exe.temp');
+  const finalPath = path.join(destDir, 'yt-dlp.exe');
+
+  logger.info(`[OnlineStream] Starting download of yt-dlp to: "${finalPath}"`);
+
+  if (!fs.existsSync(destDir)) {
+    fs.mkdirSync(destDir, { recursive: true });
+  }
+
+  if (fs.existsSync(tempPath)) {
+    try {
+      fs.unlinkSync(tempPath);
+    } catch (e) {
+      logger.error('[OnlineStream] Failed to delete existing temp file', { err: e });
+    }
+  }
+
+  const url = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe';
+
+  return new Promise<void>((resolve, reject) => {
+    const download = (downloadUrl: string) => {
+      https.get(downloadUrl, (response) => {
+        if (response.statusCode === 301 || response.statusCode === 302) {
+          const redirectUrl = response.headers.location;
+          if (redirectUrl) {
+            logger.info(`[OnlineStream] Redirecting yt-dlp download to: "${redirectUrl}"`);
+            download(redirectUrl);
+            return;
+          } else {
+            const err = new Error(`Redirect status ${response.statusCode} but no Location header found.`);
+            logger.error('[OnlineStream] Redirect error', { err });
+            reject(err);
+            return;
+          }
+        }
+
+        if (response.statusCode !== 200) {
+          const err = new Error(`Failed to download: Server returned status code ${response.statusCode}`);
+          logger.error('[OnlineStream] Download error', { err });
+          reject(err);
+          return;
+        }
+
+        const totalBytes = parseInt(response.headers['content-length'] || '0', 10);
+        let downloadedBytes = 0;
+
+        const fileStream = fs.createWriteStream(tempPath);
+        response.pipe(fileStream);
+
+        response.on('data', (chunk) => {
+          downloadedBytes += chunk.length;
+          if (totalBytes > 0) {
+            const progress = Math.round((downloadedBytes / totalBytes) * 100);
+            event.sender.send('app/ytDlpDownloadProgress', progress);
+          }
+        });
+
+        fileStream.on('finish', () => {
+          fileStream.close((err) => {
+            if (err) {
+              logger.error('[OnlineStream] File stream close error', { err });
+              reject(err);
+              return;
+            }
+            try {
+              if (fs.existsSync(finalPath)) {
+                fs.unlinkSync(finalPath);
+              }
+              fs.renameSync(tempPath, finalPath);
+              logger.info(`[OnlineStream] yt-dlp download completed and saved successfully to: "${finalPath}"`);
+              resolve();
+            } catch (renameError) {
+              logger.error('[OnlineStream] Rename error after download', { err: renameError });
+              reject(renameError);
+            }
+          });
+        });
+
+        fileStream.on('error', (err) => {
+          logger.error('[OnlineStream] File stream error during download', { err });
+          try {
+            if (fs.existsSync(tempPath)) {
+              fs.unlinkSync(tempPath);
+            }
+          } catch (e) {}
+          reject(err);
+        });
+      }).on('error', (err) => {
+        logger.error('[OnlineStream] HTTP request error during download', { err });
+        try {
+          if (fs.existsSync(tempPath)) {
+            fs.unlinkSync(tempPath);
+          }
+        } catch (e) {}
+        reject(err);
+      });
+    };
+
+    download(url);
+  });
+}
+
 export async function getOnlineStreamUrl(videoId: string): Promise<string> {
   try {
     logger.info(`[OnlineStream] Fetching stream URL for videoId: "${videoId}" using yt-dlp`);
 
-    // In packaged builds, yt-dlp.exe is bundled as an extraResource under process.resourcesPath.
-    // In development, it sits in the project root (process.cwd()).
-    const ytDlpPath = app.isPackaged
-      ? path.join(process.resourcesPath, 'yt-dlp.exe')
-      : path.join(path.resolve(process.cwd()), 'yt-dlp.exe');
+    if (!/^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
+      throw new Error(`Invalid video ID format: ${videoId}`);
+    }
+
+    const ytDlpPath = getYtDlpPath();
 
     if (!fs.existsSync(ytDlpPath)) {
       throw new Error(`yt-dlp executable not found at ${ytDlpPath}. Please download it or enable downloading.`);
@@ -175,7 +297,15 @@ export async function getOnlineStreamUrl(videoId: string): Promise<string> {
 
     const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
     const userAgent = session.defaultSession.getUserAgent();
-    const { stdout, stderr } = await execAsync(`"${ytDlpPath}" -g -f "bestaudio[ext=webm]/bestaudio" --user-agent "${userAgent}" "${videoUrl}"`);
+    const args = [
+      '-g',
+      '-f',
+      'bestaudio[ext=webm]/bestaudio',
+      '--user-agent',
+      userAgent,
+      videoUrl
+    ];
+    const { stdout, stderr } = await execFileAsync(ytDlpPath, args);
 
     if (stderr && !stdout) {
       logger.warn(`yt-dlp stderr: ${stderr}`);
@@ -201,26 +331,45 @@ export async function loginToYouTube(
   return new Promise((resolve, reject) => {
     getClient()
       .then((yt) => {
-        yt.session.on('auth-pending', (data) => {
+        const handlePending = (data: { verification_url: string; user_code: string }) => {
           logger.info(`[OAuth] Auth pending. URL: ${data.verification_url}, Code: ${data.user_code}`);
           onPending({
             verification_url: data.verification_url,
             user_code: data.user_code
           });
-        });
+        };
 
-        yt.session.on('auth', (data) => {
+        const handleAuth = (data: any) => {
           logger.info('[OAuth] Authentication successful', data);
+          cleanup();
           resolve();
-        });
+        };
 
-        yt.session.on('auth-error', (error) => {
-          logger.error('[OAuth] Authentication error', error);
+        const handleAuthError = (error: any) => {
+          logger.error('[OAuth] Authentication error', { err: error });
+          cleanup();
           reject(error);
-        });
+        };
+
+        const cleanup = () => {
+          (yt.session as any).removeListener('auth-pending', handlePending);
+          (yt.session as any).removeListener('auth', handleAuth);
+          (yt.session as any).removeListener('auth-error', handleAuthError);
+        };
+
+        // Remove any existing listeners first
+        (yt.session as any).removeAllListeners('auth-pending');
+        (yt.session as any).removeAllListeners('auth');
+        (yt.session as any).removeAllListeners('auth-error');
+
+        // Register new listeners
+        (yt.session as any).on('auth-pending', handlePending);
+        (yt.session as any).on('auth', handleAuth);
+        (yt.session as any).on('auth-error', handleAuthError);
 
         yt.session.oauth.init().catch((err) => {
           logger.error('Failed to initiate YouTube login oauth init', { err });
+          cleanup();
           reject(err);
         });
       })
@@ -388,23 +537,25 @@ export function cacheOnlineSong(song: AudioPlayerData | OnlineSongResult): numbe
     }
   }
 
-  const assignedId = nextOnlineSongId--;
-  
+  let cacheId: number;
   let cachedData: AudioPlayerData;
   if ('songId' in song && song.songId < 0 && song.songId !== -1) {
     // If it's already an assigned negative ID (not the default -1), reuse it
+    cacheId = song.songId;
     cachedData = {
       ...song
     };
   } else if ('songId' in song) {
+    cacheId = nextOnlineSongId--;
     cachedData = {
       ...song,
-      songId: assignedId
+      songId: cacheId
     };
   } else {
     // Convert OnlineSongResult to AudioPlayerData
+    cacheId = nextOnlineSongId--;
     cachedData = {
-      songId: assignedId,
+      songId: cacheId,
       title: song.title,
       artists: song.artists.map((name, idx) => ({
         artistId: -(idx + 1), // Assign temporary negative ID
@@ -421,10 +572,10 @@ export function cacheOnlineSong(song: AudioPlayerData | OnlineSongResult): numbe
     };
   }
 
-  onlineSongsCache.set(assignedId, cachedData);
-  logger.debug(`[onlineSongsCache] Cached online song: "${cachedData.title}" with ID: ${assignedId}`);
+  onlineSongsCache.set(cacheId, cachedData);
+  logger.debug(`[onlineSongsCache] Cached online song: "${cachedData.title}" with ID: ${cacheId}`);
   saveCacheToDisk();
-  return assignedId;
+  return cacheId;
 }
 
 /**

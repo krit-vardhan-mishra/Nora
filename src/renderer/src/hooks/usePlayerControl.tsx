@@ -154,7 +154,8 @@ export function usePlayerControl(
 
               storage.playback.setCurrentSongOptions('songId', songData.songId);
 
-              const newSrc = `${songData.path}?ts=${Date.now()}`;
+              const cleanPath = songData.path.split('?')[0];
+              const newSrc = `${cleanPath}?ts=${Date.now()}`;
               console.log('[playSong.src]', { src: newSrc });
               player.src = newSrc;
 
@@ -212,7 +213,8 @@ export function usePlayerControl(
             type: 'CURRENT_SONG_DATA_CHANGE',
             data: audioPlayerData
           });
-          player.src = `${audioPlayerData.path}?ts=${Date.now()}`;
+          const cleanPath = audioPlayerData.path.split('?')[0];
+          player.src = `${cleanPath}?ts=${Date.now()}`;
           refStartPlay.current = isStartPlay;
           if (isStartPlay) toggleSongPlayback();
 

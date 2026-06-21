@@ -21,7 +21,7 @@ const RecentlyPlayedOnlineSongs = (props: Props) => {
   const recentlyPlayedSongComponents = useMemo(
     () =>
       recentlyPlayedOnlineSongs
-        .filter((_, i) => i < (noOfVisibleSongs || MAX_SONG_LIMIT))
+        .filter((_, i) => i < (noOfVisibleSongs ?? MAX_SONG_LIMIT))
         .map((song, index) => {
           return (
             <SongCard

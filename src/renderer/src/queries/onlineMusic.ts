@@ -2,19 +2,19 @@ import { createQueryKeys } from '@lukemorales/query-key-factory';
 
 export const onlineMusicQuery = createQueryKeys('onlineMusic', {
   search: (data: { query: string }) => {
-    const { query } = data;
+    const normalizedQuery = (data.query ?? '').trim().toLowerCase();
 
     return {
-      queryKey: [`query=${query}`],
+      queryKey: [{ query: normalizedQuery }],
       queryFn: async (): Promise<OnlineSongResult[]> => {
         try {
-          if (!query.trim()) return [];
-          console.log(`[OnlineSearch] Initiating online search for query: "${query}"`);
-          const results = await window.api.onlineMusic.searchOnlineSongs(query);
-          console.log(`[OnlineSearch] Received ${results.length} results for query: "${query}"`);
+          if (!normalizedQuery) return [];
+          console.log(`[OnlineSearch] Initiating online search for query: "${normalizedQuery}"`);
+          const results = await window.api.onlineMusic.searchOnlineSongs(normalizedQuery);
+          console.log(`[OnlineSearch] Received ${results.length} results for query: "${normalizedQuery}"`);
           return results;
         } catch (error) {
-          console.error(`[OnlineSearch] Online music search failed for query: "${query}"`, error);
+          console.error(`[OnlineSearch] Online music search failed for query: "${normalizedQuery}"`, error);
           return [];
         }
       }

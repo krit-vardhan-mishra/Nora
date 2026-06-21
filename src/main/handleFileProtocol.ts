@@ -26,7 +26,8 @@ export const handleFileProtocol = async (req: GlobalRequest) => {
     const headers: Record<string, string> = {
       'Content-Type': mimeType,
       'Accept-Ranges': 'bytes',
-      'Cache-Control': 'no-cache'
+      'Cache-Control': 'no-cache',
+      'Access-Control-Allow-Origin': '*'
     };
 
     if (range) {
@@ -93,7 +94,13 @@ export const handleFileProtocol = async (req: GlobalRequest) => {
     } else {
       const asFileUrl = pathToFileURL(filePath).toString();
       const response = await net.fetch(asFileUrl);
-      return response;
+      const responseHeaders = new Headers(response.headers);
+      responseHeaders.set('Access-Control-Allow-Origin', '*');
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: responseHeaders
+      });
     }
   } catch (error) {
     logger.error('Error handling media protocol:', { error }, error);

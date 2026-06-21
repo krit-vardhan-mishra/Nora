@@ -104,13 +104,18 @@ export function useMediaSession(player: HTMLAudioElement, dependencies: MediaSes
           // Handle base64 artwork
           artworkPath = `data:;base64,${currentSong.artwork}`;
         }
+      } else if (currentSong.artworkPath) {
+        // Use the artworkPath directly (e.g. online https:// URL or local nora:// URL)
+        artworkPath = currentSong.artworkPath;
       } else {
         artworkPath = '';
       }
 
-      // Clean up previous artwork URL
+      // Clean up previous artwork URL if it is a blob URL
       if (artworkPathRef.current && artworkPathRef.current !== artworkPath) {
-        URL.revokeObjectURL(artworkPathRef.current);
+        if (artworkPathRef.current.startsWith('blob:')) {
+          URL.revokeObjectURL(artworkPathRef.current);
+        }
       }
       artworkPathRef.current = artworkPath;
 
@@ -119,7 +124,7 @@ export function useMediaSession(player: HTMLAudioElement, dependencies: MediaSes
             {
               src: artworkPath,
               sizes: '1000x1000',
-              type: 'image/webp'
+              ...(artworkPath.startsWith('blob:') || artworkPath.startsWith('data:') ? { type: 'image/webp' } : {})
             }
           ]
         : [];

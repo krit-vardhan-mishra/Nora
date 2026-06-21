@@ -221,7 +221,7 @@ class AudioPlayer {
         songId: songData.songId,
         title: songData.title,
         isOnlineStream: songData.isOnlineStream,
-        path: songData.path,
+        path: songData.isOnlineStream ? '[REDACTED]' : songData.path,
         options
       });
 
@@ -233,21 +233,19 @@ class AudioPlayer {
         storage.playback.setCurrentSongOptions('songId', songData.songId);
       }
 
-      // Configure crossOrigin BEFORE setting src
-      if (songData.isOnlineStream) {
-        console.log('[AudioPlayer.loadSong] Setting crossOrigin = "anonymous" for online stream.');
-        this.audio.crossOrigin = 'anonymous';
-      } else {
-        console.log('[AudioPlayer.loadSong] Removing crossOrigin attribute for local/offline file.');
-        this.audio.removeAttribute('crossorigin');
-      }
+      // Configure crossOrigin BEFORE setting src to allow Web Audio API/Equalizer access via CORS
+      console.log('[AudioPlayer.loadSong] Setting crossOrigin = "anonymous" for media element.');
+      this.audio.crossOrigin = 'anonymous';
 
       // Set audio source — online streams already have unique URLs, local files get cache-busting
-      this.audio.src = songData.isOnlineStream
-        ? songData.path
-        : `${songData.path}?ts=${Date.now()}`;
+      if (songData.isOnlineStream) {
+        this.audio.src = songData.path;
+      } else {
+        const cleanPath = songData.path.split('?')[0];
+        this.audio.src = `${cleanPath}?ts=${Date.now()}`;
+      }
 
-      console.log('[AudioPlayer.loadSong] Audio source set to:', this.audio.src);
+      console.log('[AudioPlayer.loadSong] Audio source set to:', songData.isOnlineStream ? '[REDACTED]' : this.audio.src);
 
       // Load is synchronous, no need to await
       this.audio.load();
@@ -671,7 +669,7 @@ class AudioPlayer {
     console.log('[AudioPlayer.playOnlineSong] Playing online song:', {
       title: songData.title,
       videoId: songData.onlineVideoId,
-      path: songData.path
+      path: '[REDACTED]'
     });
     await this.loadSong(songData, { autoPlay: true, updateStore: true });
   }

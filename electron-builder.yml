@@ -22,9 +22,6 @@ files:
   - '!**/resources/installer_assets/*'
   - '!**/resources/other/*'
 
-extraResources:
-  - from: ./yt-dlp.exe
-    to: yt-dlp.exe
 
 asarUnpack:
   - resources/**

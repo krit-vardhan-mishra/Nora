@@ -40,12 +40,10 @@ const OnlineSearchResultsContainer = (props: Props) => {
         console.log(`[OnlineStream] Fetching recommendations for videoId: "${song.videoId}"`);
         const recommendations = await window.api.onlineMusic.getOnlineRecommendations(song.videoId);
         
-        console.log(`[OnlineStream] Caching recommended songs...`);
-        const recommendedSongIds: number[] = [];
-        for (const rec of recommendations) {
-          const id = await window.api.onlineMusic.cacheOnlineSong(rec);
-          recommendedSongIds.push(id);
-        }
+        console.log(`[OnlineStream] Caching recommended songs in parallel...`);
+        const recommendedSongIds = await Promise.all(
+          recommendations.map((rec) => window.api.onlineMusic.cacheOnlineSong(rec))
+        );
 
         const unifiedQueue = [clickedSongId, ...recommendedSongIds];
         console.log(`[OnlineStream] Replacing queue with ${unifiedQueue.length} songs and starting playback of ID ${clickedSongId}`);
@@ -151,7 +149,7 @@ const OnlineSearchResultsContainer = (props: Props) => {
         />
       </div>
     ));
-  }, [results, noOfVisibleSongs, handlePlayOnlineSong, loadingVideoId]);
+  }, [results, noOfVisibleSongs, handlePlayOnlineSong, handleSongTitleClick, loadingVideoId]);
 
   return (
     <SecondaryContainer

@@ -10,7 +10,7 @@ The Nora Player has been upgraded from a purely offline music player to support 
 
 1. **Online Music Streaming Support**:
    - Integrated with YouTube Music using `youtubei.js` and `yt-dlp` to search, resolve, stream, and play online tracks dynamically.
-   - Bypassed CORS limitations for google video streams in Electron main process to enable standard Web Audio API playback.
+   - Bypassed CORS limitations for Google video streams in Electron main process to enable standard Web Audio API playback.
 
 2. **Recommendations via Shuffle**:
    - Clicking the shuffle button now triggers recommendations. Similar tracks are dynamically fetched using the YouTube Music "Up Next" API based on the currently playing track.

@@ -21,7 +21,7 @@ import { useThrottledCallback } from '@tanstack/react-pacer';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useStore } from '@tanstack/react-store';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 export const Route = createFileRoute('/main-player/search/')({
@@ -66,6 +66,55 @@ function SearchPage() {
   const { width } = useResizeObserver(searchContainerRef);
   const [searchText, setSearchText] = useState(keyword);
   const [isOnlineSearch, setIsOnlineSearch] = useState(false);
+  const [isYtDlpInstalled, setIsYtDlpInstalled] = useState<boolean | 'checking'>('checking');
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+
+  // LOG: when user visits the search screen
+  useEffect(() => {
+    window.api.log.sendLogs('User visited the Search screen', { isOnlineSearch });
+  }, []);
+
+  // LOG: when user shifts to online song mode
+  useEffect(() => {
+    window.api.log.sendLogs('User toggled search mode', { isOnlineSearch });
+    if (isOnlineSearch) {
+      window.api.onlineMusic.isYtDlpInstalled()
+        .then((installed) => {
+          setIsYtDlpInstalled(installed);
+          window.api.log.sendLogs('Checked yt-dlp installation status', { installed });
+        })
+        .catch((err) => {
+          console.error('Failed to check yt-dlp installation', err);
+          setIsYtDlpInstalled(false);
+          window.api.log.sendLogs('Failed to check yt-dlp installation', { error: String(err) });
+        });
+    }
+  }, [isOnlineSearch]);
+
+  const startYtDlpDownload = async () => {
+    setIsDownloading(true);
+    setDownloadProgress(0);
+    window.api.log.sendLogs('User initiated yt-dlp download');
+
+    const handleProgress = (_event: unknown, progress: number) => {
+      setDownloadProgress(progress);
+    };
+
+    const unsubscribe = window.api.onlineMusic.onYtDlpDownloadProgress(handleProgress);
+
+    try {
+      await window.api.onlineMusic.downloadYtDlp();
+      setIsYtDlpInstalled(true);
+      window.api.log.sendLogs('yt-dlp download completed successfully');
+    } catch (error) {
+      console.error('Failed to download yt-dlp', error);
+      window.api.log.sendLogs('Failed to download yt-dlp', { error: String(error) });
+    } finally {
+      setIsDownloading(false);
+      unsubscribe();
+    }
+  };
 
   // Local library search query
   const { data: searchResults } = useQuery({
@@ -80,7 +129,7 @@ function SearchPage() {
   // Online search query (YouTube Music)
   const { data: onlineResults, isFetching: isOnlineSearching } = useQuery({
     ...onlineMusicQuery.search({ query: keyword ?? '' }),
-    enabled: (keyword ?? '').trim().length > 0 && isOnlineSearch
+    enabled: (keyword ?? '').trim().length > 0 && isOnlineSearch && isYtDlpInstalled === true
   });
 
   const throttledSetSearch = useThrottledCallback(
@@ -224,7 +273,34 @@ function SearchPage() {
       </div>
       <div className="search-results-container relative h-full!">
         {/* ONLINE RESULTS */}
-        {isOnlineSearch && onlineResults && <OnlineSearchResultsContainer results={onlineResults} />}
+        {isOnlineSearch && isYtDlpInstalled === true && onlineResults && (
+          <OnlineSearchResultsContainer results={onlineResults} />
+        )}
+
+        {/* YT-DLP REQUIREMENT SUGGESTION */}
+        {isOnlineSearch && isYtDlpInstalled === false && (
+          <div className="flex h-[60%] flex-col items-center justify-center text-center p-8">
+            <div className="bg-background-color-2/65 dark:bg-dark-background-color-2/65 border border-background-color-3/20 dark:border-dark-background-color-3/20 max-w-md rounded-2xl p-8 shadow-xl backdrop-blur-md">
+              <span className="material-icons-round text-5xl text-background-color-3 dark:text-dark-background-color-3 mb-4 animate-pulse">
+                download_for_offline
+              </span>
+              <h2 className="text-xl font-bold text-font-color-black dark:text-font-color-white mb-2">
+                {t('searchPage.ytDlpRequiredTitle', 'Online Streaming Setup')}
+              </h2>
+              <p className="text-sm text-font-color-highlight dark:text-dark-font-color-highlight mb-6 leading-relaxed">
+                {t(
+                  'searchPage.ytDlpRequiredDesc',
+                  'Nora uses yt-dlp to stream audio online. Download the required component to start listening to online music.'
+                )}
+              </p>
+              <Button
+                className="w-full! justify-center! bg-background-color-3 dark:bg-dark-background-color-3 text-black! font-semibold! py-3! rounded-xl! border-none!"
+                label={t('searchPage.downloadYtDlp', 'Download required components')}
+                clickHandler={startYtDlpDownload}
+              />
+            </div>
+          </div>
+        )}
 
         {/* LIBRARY RESULTS */}
         {!isOnlineSearch && searchResults && (
@@ -274,12 +350,43 @@ function SearchPage() {
           </>
         )}
         {/* SEARCH START PLACEHOLDER */}
-        <SearchStartPlaceholder
-          searchResults={isOnlineSearch ? undefined : searchResults}
-          searchInput={keyword}
-          updateSearchInput={updateSearchInput}
-        />
+        {(!isOnlineSearch || isYtDlpInstalled !== false) && (
+          <SearchStartPlaceholder
+            searchResults={isOnlineSearch ? undefined : searchResults}
+            searchInput={keyword}
+            updateSearchInput={updateSearchInput}
+          />
+        )}
       </div>
+
+      {/* DOWNLOAD PROGRESS OVERLAY */}
+      {isDownloading && (
+        <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300">
+          <div className="bg-background-color-1/90 dark:bg-dark-background-color-1/90 border border-background-color-3/15 dark:border-dark-background-color-3/15 max-w-sm w-full mx-4 p-8 rounded-2xl shadow-2xl flex flex-col items-center text-center backdrop-blur-lg animate-scale-up">
+            <span className="material-icons-round text-5xl text-background-color-3 dark:text-dark-background-color-3 mb-4 animate-bounce">
+              cloud_download
+            </span>
+            <h3 className="text-lg font-bold text-font-color-black dark:text-font-color-white mb-1">
+              {t('searchPage.downloadingYtDlp', 'Downloading yt-dlp...')}
+            </h3>
+            <p className="text-xs text-font-color-highlight dark:text-dark-font-color-highlight mb-6">
+              {t('searchPage.downloadingDesc', 'Setting up dependencies. Please do not close Nora.')}
+            </p>
+            
+            {/* Progress Bar */}
+            <div className="w-full bg-background-color-2 dark:bg-dark-background-color-2 h-3 rounded-full overflow-hidden mb-3 relative">
+              <div 
+                className="bg-background-color-3 dark:bg-dark-background-color-3 h-full rounded-full transition-all duration-300 ease-out"
+                style={{ width: `${downloadProgress}%` }}
+              />
+            </div>
+            
+            <span className="text-sm font-bold text-background-color-3 dark:text-dark-background-color-3">
+              {downloadProgress}%
+            </span>
+          </div>
+        </div>
+      )}
     </MainContainer>
   );
 }

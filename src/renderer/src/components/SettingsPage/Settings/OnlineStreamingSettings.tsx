@@ -9,9 +9,13 @@ const OnlineStreamingSettings = () => {
   useEffect(() => {
     window.api.onlineMusic.isYouTubeLoggedIn().then(setIsLoggedIn).catch(console.error);
 
-    window.api.onlineMusic.onYouTubeLoginPending((_, data) => {
+    const unsubscribe = window.api.onlineMusic.onYouTubeLoginPending((_, data) => {
       setLoginPrompt({ url: data.verification_url, code: data.user_code });
     });
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   const handleLogin = async () => {

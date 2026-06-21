@@ -164,7 +164,7 @@ function OnlineSongsPage() {
       {onlineSongData.length === 0 && (
         <div className="no-songs-container text-font-color-black dark:text-font-color-white my-[8%] flex h-full w-full flex-col items-center justify-center text-center text-xl">
           <Img src={NoSongsImage} alt="" className="mb-8 w-60" />
-          <span>No recently played online songs</span>
+          <span>{t('onlineSongs.noRecentlyPlayedSongs', 'No recently played online songs')}</span>
         </div>
       )}
     </MainContainer>

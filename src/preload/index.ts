@@ -575,9 +575,13 @@ const onlineMusic = {
     ipcRenderer.invoke('app/getOnlineStreamUrl', videoId),
   isYouTubeLoggedIn: (): Promise<boolean> => ipcRenderer.invoke('app/isYouTubeLoggedIn'),
   loginToYouTube: (): Promise<void> => ipcRenderer.invoke('app/loginToYouTube'),
-  onYouTubeLoginPending: (callback: (e: unknown, data: { verification_url: string; user_code: string }) => void) => {
-    ipcRenderer.removeAllListeners('app/youtubeLoginPending');
+  onYouTubeLoginPending: (
+    callback: (e: unknown, data: { verification_url: string; user_code: string }) => void
+  ) => {
     ipcRenderer.on('app/youtubeLoginPending', callback);
+    return () => {
+      ipcRenderer.removeListener('app/youtubeLoginPending', callback);
+    };
   },
   cacheOnlineSong: (song: AudioPlayerData | OnlineSongResult): Promise<number> =>
     ipcRenderer.invoke('app/cacheOnlineSong', song),
@@ -586,7 +590,17 @@ const onlineMusic = {
   getOnlineListenedSongs: (): Promise<AudioPlayerData[]> =>
     ipcRenderer.invoke('app/getOnlineListenedSongs'),
   removeFromOnlineListenedSongs: (songId: number): Promise<boolean> =>
-    ipcRenderer.invoke('app/removeFromOnlineListenedSongs', songId)
+    ipcRenderer.invoke('app/removeFromOnlineListenedSongs', songId),
+  isYtDlpInstalled: (): Promise<boolean> =>
+    ipcRenderer.invoke('app/isYtDlpInstalled'),
+  downloadYtDlp: (): Promise<void> =>
+    ipcRenderer.invoke('app/downloadYtDlp'),
+  onYtDlpDownloadProgress: (callback: (e: unknown, progress: number) => void) => {
+    ipcRenderer.on('app/ytDlpDownloadProgress', callback);
+    return () => {
+      ipcRenderer.removeListener('app/ytDlpDownloadProgress', callback);
+    };
+  }
 };
 
 // $ OTHER

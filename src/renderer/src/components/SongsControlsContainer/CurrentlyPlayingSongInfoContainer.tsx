@@ -61,15 +61,19 @@ const CurrentlyPlayingSongInfoContainer = () => {
     return undefined;
   }, [currentSongData.artists, currentSongData.songId, navigate]);
 
+  const canOpenSongInfo = useMemo(() => {
+    return currentSongData.isKnownSource || (currentSongData.songId !== null && currentSongData.songId < 0);
+  }, [currentSongData.isKnownSource, currentSongData.songId]);
+
   const showSongInfoPage = useCallback(
     (songId: number) =>
-      currentSongData.isKnownSource || songId < 0
+      canOpenSongInfo
         ? navigate({
             to: '/main-player/songs/$songId',
             params: { songId: String(songId) }
           })
         : undefined,
-    [navigate, currentSongData.isKnownSource]
+    [navigate, canOpenSongInfo]
   );
 
   const gotToSongAlbumPage = useCallback(
@@ -155,7 +159,7 @@ const CurrentlyPlayingSongInfoContainer = () => {
         label: t('common.info'),
         iconName: 'info',
         handlerFunction: () => showSongInfoPage(songId),
-        isDisabled: !isKnownSource
+        isDisabled: !canOpenSongInfo
       },
       {
         label: t('song.goToAlbum'),
@@ -241,6 +245,7 @@ const CurrentlyPlayingSongInfoContainer = () => {
     changePromptMenuData,
     currentSongData,
     gotToSongAlbumPage,
+    canOpenSongInfo,
     preferences?.doNotShowBlacklistSongConfirm,
     showSongInfoPage,
     t,
@@ -281,9 +286,9 @@ const CurrentlyPlayingSongInfoContainer = () => {
               to="/main-player/songs/$songId"
               params={{ songId: String(currentSongData.songId) }}
               className={`text-font-color-highlight w-fit max-w-full cursor-pointer overflow-hidden text-2xl font-medium text-ellipsis whitespace-nowrap outline-offset-1 focus-visible:outline! ${
-                (currentSongData.isKnownSource || currentSongData.songId < 0) && 'hover:underline'
+                canOpenSongInfo && 'hover:underline'
               }`}
-              disabled={!currentSongData.isKnownSource && currentSongData.songId >= 0}
+              disabled={!canOpenSongInfo}
               id="currentSongTitle"
               title={currentSongData.title}
               onContextMenu={(e) => {

@@ -123,12 +123,10 @@ export function useQueueManagement(dependencies: QueueManagementDependencies) {
         // Fetch new recommendations based on current video ID
         const recommendations = await window.api.onlineMusic.getOnlineRecommendations(currentSong.onlineVideoId);
         
-        // Cache recommended songs and get their IDs
-        const recommendedSongIds: number[] = [];
-        for (const rec of recommendations) {
-          const id = await window.api.onlineMusic.cacheOnlineSong(rec);
-          recommendedSongIds.push(id);
-        }
+        // Cache recommended songs and get their IDs in parallel
+        const recommendedSongIds = await Promise.all(
+          recommendations.map((rec) => window.api.onlineMusic.cacheOnlineSong(rec))
+        );
 
         // Keep only the currently playing song at the start (index 0) of the queue and remove previous songs
         const currentSongId = currentSong.songId;

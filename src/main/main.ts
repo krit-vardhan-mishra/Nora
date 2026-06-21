@@ -98,6 +98,10 @@ let powerSaveBlockerId: number | null;
 let currentWindowZoomFactor = MAIN_WINDOW_DEFAULT_ZOOM_FACTOR;
 
 // / / / / / / INITIALIZATION / / / / / / /
+app.setName('Nora');
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.sandakannipunajith.nora');
+}
 
 // Behaviour on second instance for parent process
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
@@ -271,6 +275,7 @@ protocol.registerSchemesAsPrivileged([
       standard: true,
       secure: true,
       supportFetchAPI: true,
+      corsEnabled: true,
       stream: true
     }
   }
@@ -292,34 +297,50 @@ app
       }
     );
 
-    electronSession.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-      if (details.url.includes('googlevideo.com') || details.url.includes('youtube.com')) {
-        const responseHeaders = { ...details.responseHeaders };
-        const headersToRemove = [
-          'access-control-allow-origin',
-          'access-control-allow-methods',
-          'access-control-allow-headers',
-          'access-control-expose-headers',
-          'access-control-allow-credentials'
-        ];
-        for (const key of Object.keys(responseHeaders)) {
-          if (headersToRemove.includes(key.toLowerCase())) {
-            delete responseHeaders[key];
-          }
+    electronSession.defaultSession.webRequest.onHeadersReceived(
+      { urls: ['*://*.googlevideo.com/*', '*://*.youtube.com/*'] },
+      (details, callback) => {
+        let isMatch = false;
+        try {
+          const parsedUrl = new URL(details.url);
+          const hostname = parsedUrl.hostname;
+          isMatch =
+            hostname === 'googlevideo.com' ||
+            hostname.endsWith('.googlevideo.com') ||
+            hostname === 'youtube.com' ||
+            hostname.endsWith('.youtube.com');
+        } catch (e) {
+          logger.error('Failed to parse URL in onHeadersReceived', { err: e, url: details.url });
         }
-        callback({
-          responseHeaders: {
-            ...responseHeaders,
-            'Access-Control-Allow-Origin': ['*'],
-            'Access-Control-Allow-Methods': ['GET, POST, OPTIONS'],
-            'Access-Control-Allow-Headers': ['Range, Content-Type'],
-            'Access-Control-Expose-Headers': ['Content-Length, Content-Range, Accept-Ranges']
+
+        if (isMatch) {
+          const responseHeaders = { ...details.responseHeaders };
+          const headersToRemove = [
+            'access-control-allow-origin',
+            'access-control-allow-methods',
+            'access-control-allow-headers',
+            'access-control-expose-headers',
+            'access-control-allow-credentials'
+          ];
+          for (const key of Object.keys(responseHeaders)) {
+            if (headersToRemove.includes(key.toLowerCase())) {
+              delete responseHeaders[key];
+            }
           }
-        });
-      } else {
-        callback({ responseHeaders: details.responseHeaders });
+          callback({
+            responseHeaders: {
+              ...responseHeaders,
+              'Access-Control-Allow-Origin': ['*'],
+              'Access-Control-Allow-Methods': ['GET, POST, OPTIONS'],
+              'Access-Control-Allow-Headers': ['Range, Content-Type'],
+              'Access-Control-Expose-Headers': ['Content-Length, Content-Range, Accept-Ranges']
+            }
+          });
+        } else {
+          callback({ responseHeaders: details.responseHeaders });
+        }
       }
-    });
+    );
 
     const { windowState, zoomFactor } = await getUserSettings();
 
