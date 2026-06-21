@@ -1,9 +1,9 @@
-// import logger from './logger';
 import { dialog } from 'electron';
 /* eslint-disable promise/catch-or-return */
 import electronUpdater from 'electron-updater';
-// import { IS_DEVELOPMENT } from './main';
+import logger from './logger';
 
+// Original legacy/unused async updater check commented out in the codebase:
 // export default async function checkForUpdates() {
 //   electronUpdater.autoUpdater.logger = {
 //     info: (mes) => logger.info(mes),
@@ -21,8 +21,14 @@ import electronUpdater from 'electron-updater';
 
 electronUpdater.autoUpdater.autoDownload = false;
 
+let isManualCheck = false;
+
 electronUpdater.autoUpdater.on('error', (error) => {
-  dialog.showErrorBox('Error: ', error == null ? 'unknown' : (error.stack || error).toString());
+  logger.error('Auto-updater error:', error);
+  // Only show error boxes to the user for manual update checks, not automatic startup checks.
+  if (isManualCheck) {
+    dialog.showErrorBox('Error: ', error == null ? 'unknown' : (error.stack || error).toString());
+  }
 });
 
 electronUpdater.autoUpdater.on('update-available', () => {
@@ -41,10 +47,14 @@ electronUpdater.autoUpdater.on('update-available', () => {
 });
 
 electronUpdater.autoUpdater.on('update-not-available', () => {
-  dialog.showMessageBox({
-    title: 'No Updates',
-    message: 'Current version is up-to-date.'
-  });
+  logger.info('No updates available.');
+  // Only show "No Updates" popup dialog if checked manually, so startup check remains silent.
+  if (isManualCheck) {
+    dialog.showMessageBox({
+      title: 'No Updates',
+      message: 'Current version is up-to-date.'
+    });
+  }
 });
 
 electronUpdater.autoUpdater.on('update-downloaded', () => {
@@ -59,6 +69,7 @@ electronUpdater.autoUpdater.on('update-downloaded', () => {
 });
 
 // export this to MenuItem click callback
-export default function checkForUpdates() {
+export default function checkForUpdates(isManual = false) {
+  isManualCheck = isManual;
   electronUpdater.autoUpdater.checkForUpdates();
 }

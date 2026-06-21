@@ -72,6 +72,20 @@ const getArtworkBuffer = async (artworkPath: string) => {
   }
 };
 
+const fetchOnlineArtworkBuffer = async (url: string): Promise<Buffer | undefined> => {
+  try {
+    const res = await fetch(url);
+    if (res.ok) {
+      const arrayBuffer = await res.arrayBuffer();
+      return Buffer.from(arrayBuffer);
+    }
+    logger.warn(`[sendAudioData] Failed to fetch online artwork from ${url}: ${res.statusText}`);
+  } catch (error) {
+    logger.error(`[sendAudioData] Error fetching online artwork from ${url}:`, { error });
+  }
+  return undefined;
+};
+
 const sendAudioData = async (songId: number): Promise<AudioPlayerData> => {
   logger.debug(`Fetching song data for song id -${songId}-`);
   if (songId < 0) {
@@ -80,8 +94,15 @@ const sendAudioData = async (songId: number): Promise<AudioPlayerData> => {
     if (cachedSong) {
       try {
         logger.info(`[sendAudioData] Resolving fresh stream URL for online song: "${cachedSong.title}" (${cachedSong.onlineVideoId})`);
-        const freshStreamUrl = await getOnlineStreamUrl(cachedSong.onlineVideoId!);
+        
+        const [freshStreamUrl, artworkBuffer] = await Promise.all([
+          getOnlineStreamUrl(cachedSong.onlineVideoId!),
+          cachedSong.artworkPath ? fetchOnlineArtworkBuffer(cachedSong.artworkPath) : Promise.resolve(undefined)
+        ]);
         cachedSong.path = freshStreamUrl;
+        if (artworkBuffer) {
+          cachedSong.artwork = parseArtworkDataForAudioPlayerData(artworkBuffer);
+        }
         
         // Update Discord RPC activity
         const now = Date.now();

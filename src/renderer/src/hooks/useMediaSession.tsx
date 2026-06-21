@@ -94,7 +94,7 @@ export function useMediaSession(player: HTMLAudioElement, dependencies: MediaSes
 
       // Handle artwork
       let artworkPath: string | undefined;
-      if (currentSong.artwork !== undefined) {
+      if (currentSong.artwork) {
         if (typeof currentSong.artwork === 'object') {
           // Handle Uint8Array artwork
           const artwork = currentSong.artwork as Uint8Array<ArrayBuffer>;
@@ -124,7 +124,7 @@ export function useMediaSession(player: HTMLAudioElement, dependencies: MediaSes
             {
               src: artworkPath,
               sizes: '1000x1000',
-              ...(artworkPath.startsWith('blob:') || artworkPath.startsWith('data:') ? { type: 'image/webp' } : {})
+              type: 'image/webp'
             }
           ]
         : [];

@@ -149,12 +149,24 @@ export function useAppLifecycle(dependencies: AppLifecycleDependencies): void {
     // Check for startup songs (e.g., songs opened via file association)
     window.api.audioLibraryControls
       .checkForStartUpSongs()
-      .then((startUpSongData) => {
+      .then(async (startUpSongData) => {
         if (startUpSongData) {
           playSongFromUnknownSource(startUpSongData, true);
         } else if (playback?.currentSong.songId && playback.currentSong.songId !== -1) {
+          const songId = playback.currentSong.songId;
+          const isOnlineSong = songId < 0;
+
+          if (isOnlineSong) {
+            // Check if yt-dlp is installed before attempting to load an online song
+            const isInstalled = await window.api.onlineMusic.isYtDlpInstalled();
+            if (!isInstalled) {
+              console.log('[AppLifecycle] yt-dlp is not installed. Skipping online song restoration on startup.');
+              return undefined;
+            }
+          }
+
           // Resume previous song
-          playSong(playback.currentSong.songId, false);
+          playSong(songId, false);
 
           const currSongPosition = Number(playback.currentSong.stoppedPosition);
           player.currentTime = currSongPosition;
